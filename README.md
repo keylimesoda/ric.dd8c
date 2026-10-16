@@ -2,37 +2,48 @@
 
 [![Built for Omarchy: Plugin](https://raw.githubusercontent.com/tcballard/omarchy-badges/75975e5b5bf75e7ede3764bcd2950046f7abfe2c/badges/v1/omarchy-plugin.svg)](https://github.com/tcballard/omarchy-badges)
 
-Control your Dutch & Dutch 8c/6c room from the Omarchy bar: gain, mute,
-standby, input select, presets, RoomMatching profiles, tone controls,
-front LED, and live device status. No cloud, no vendor app — the bundled
-CLI speaks the speakers' local mesh API directly.
+Control your Dutch & Dutch 8c/6c room straight from the Omarchy bar:
+gain, mute, standby, input select, presets, RoomMatching profiles, tone
+controls, front LED, and live device status. No cloud, no vendor app —
+the bundled CLI speaks the speakers' local mesh API directly.
 
-Kinds: bar-widget
+![8C widget in the Omarchy bar](preview/preview-hero.png)
 
-## GitHub topics
+## Why
 
-Pair this badge with `omarchy`, `omarchy-plugin`, and `dutch-and-dutch` in
-your GitHub repository's About topics.
+The official Ascend app wants you on their network stack, and the
+network-streaming license (Roon/Spotify via AES Streamer) is a €2k+
+option. If you feed the 8Cs analog or AES3 like everyone else, you still
+deserve a volume knob on the desktop. This widget gives you the whole
+unlicensed control surface — the same endpoints the vendor's own web app
+uses — plus a scriptable CLI, in the style of the Omarchy bar.
+
+## What you get
+
+- **Bar chip** — the Dutch & Dutch monogram + live gain. Scroll = ±1 dB,
+  middle-click = mute, click = panel. Dim = offline, faint = standby.
+- **Keyboard-first panel** — volume, standby, front LED, input select
+  (Analog hi/lo · AES/EBU · AES Streamer · File Player), presets,
+  RoomMatching profiles, tone (sub/bass/treble), device info.
+- **CLI + IPC** — drive it from scripts, keybindings or dotfiles.
+- **Stdlib only** — the daemon is pure Python 3, no pip dependencies.
+
+![Control panel](preview/screenshot-panel.png)
 
 ## Bar chip
+
+![Chip close-up](preview/screenshot-chip.png)
 
 - **Click** — open/close the control panel
 - **Middle-click** — mute toggle
 - **Scroll** — gain ±`volStepDb` (default 1 dB)
-- The Dutch & Dutch monogram (from the vendor's favicon, trademark D&D) plus
-  the current gain; dim = offline, faint = standby.
 
-## Panel (keyboard-first)
+## Panel keys
 
 - `Tab` / `j` `k` — sections · `h` `l` — adjust within section
 - `Enter` — activate focused control · `Space` — mute
 - `m` mute · `s` standby · `f` front LED · `i` cycle input · `1`–`5` pick
   input · `+`/`-` volume · `r` refresh
-
-Sections: Volume (slider spans the room's advertised limits), Standby /
-Front LED, Input (Analog hi/lo, AES/EBU, AES Streamer, File Player),
-Presets, Profiles (RoomMatching), Tone (sub/bass/treble, −12…+6 dB),
-Device (master, firmware, phase/night mode, input level, licenses).
 
 ## Summon without the bar
 
@@ -43,9 +54,9 @@ omarchy-shell shell toggle ric.dd8c   # bind to a key if you like
 IPC for scripts:
 
 ```
-quickshell ipc -t ric.dd8c volSet -22
-quickshell ipc -t ric.dd8c mute on
-quickshell ipc -t ric.dd8c input aes
+quickshell ipc call ric.dd8c volSet -22
+quickshell ipc call ric.dd8c mute on
+quickshell ipc call ric.dd8c input aes
 ```
 
 ## CLI (same engine the widget uses)
@@ -66,7 +77,7 @@ bin/dd8c tone --bass 2 --treble -1
 
 | key | default | meaning |
 |---|---|---|
-| `masterIp` | `192.168.183.48` | master speaker; `""` = mDNS discovery |
+| `masterIp` | your master's IP | master speaker; `""` = mDNS discovery |
 | `volStepDb` | `1` | scroll/arrow gain step |
 | `barText` | `true` | show gain readout |
 | `fixture` | `false` | demo data, no device |
@@ -75,7 +86,8 @@ bin/dd8c tone --bass 2 --treble -1
 
 The daemon never sends firmware install/reset verbs and clamps gain to
 the limits the room document advertises. It only writes endpoints that
-the vendor's own web app uses for these controls.
+the vendor's own web app uses for these controls. Read-only by default;
+every write is an explicit command.
 
 ## Requirements
 
@@ -84,6 +96,12 @@ the vendor's own web app uses for these controls.
 - Speakers on the same LAN, reachable at `ws://<master>:8768`.
 
 ## Installation
+
+```bash
+omarchy plugin add https://github.com/keylimesoda/ric.dd8c.git --enable
+```
+
+For a local checkout:
 
 ```bash
 omarchy plugin add "$(pwd)" --enable
@@ -97,3 +115,14 @@ omarchy plugin add "$(pwd)" --enable
 
 Runs manifest validation, the daemon end-to-end against a fixture
 WebSocket server (no speakers needed), and Model.js unit tests.
+
+## Credits & trademark note
+
+The monogram in `assets/` and the panel is trademark **Dutch & Dutch**,
+taken from their public site favicon and used here only to label the
+user's own speakers. This is an unofficial community plugin; the local
+mesh protocol was reverse-engineered from the vendor's own web app
+traffic. Not affiliated with Dutch & Dutch.
+
+MIT licensed — see [LICENSE](LICENSE). Design decisions live in
+[DESIGN.md](DESIGN.md).
