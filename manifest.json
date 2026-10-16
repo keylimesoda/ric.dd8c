@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "ric.dd8c",
+  "name": "Dutch & Dutch 8C",
+  "version": "1.0.0",
+  "author": "Ric",
+  "license": "MIT",
+  "description": "Dutch & Dutch 8c/6c room in the bar: gain, mute, standby, input select (AES3/analog/File Player), presets, RoomMatching profiles, tone controls, front LED, and device status. Keyboard-first panel; backed by the bundled dd8c CLI (local WebSocket mesh API, no cloud).",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "8C Speakers",
+    "description": "Control the Dutch & Dutch room: click for the panel, middle-click mute, scroll to change volume.",
+    "category": "Media",
+    "aliases": [
+      "8c",
+      "dutch",
+      "ascend",
+      "play room",
+      "speakers"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "center",
+    "defaults": {
+      "masterIp": "192.168.183.48",
+      "volStepDb": 1,
+      "barText": true,
+      "fixture": false
+    },
+    "schema": [
+      {
+        "key": "masterIp",
+        "type": "string",
+        "label": "Master speaker IP",
+        "description": "Master 8c address (find it with: bin/dd8c discover). Empty = mDNS discovery at startup.",
+        "defaultValue": "192.168.183.48"
+      },
+      {
+        "key": "volStepDb",
+        "type": "integer",
+        "label": "Volume step (dB)",
+        "description": "Scroll / arrow-key gain step.",
+        "min": 1,
+        "max": 10,
+        "step": 1,
+        "defaultValue": 1
+      },
+      {
+        "key": "barText",
+        "type": "bool",
+        "label": "Show gain readout in bar",
+        "defaultValue": true
+      },
+      {
+        "key": "fixture",
+        "type": "bool",
+        "label": "Fixture mode (demo data, no device)",
+        "defaultValue": false
+      }
+    ]
+  }
+}

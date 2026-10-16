@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+python3 "$root/scripts/validate_manifest.py" "$root"
+bash -n "$root/demo/run"
+python3 -m json.tool "$root/demo/fixtures/example.json" >/dev/null
+
+if command -v omarchy >/dev/null 2>&1; then
+  omarchy plugin validate "$root"
+fi
+
+python3 "$root/tests/test_cli.py"
+if command -v node >/dev/null 2>&1; then
+  node "$root/tests/test_model.js"
+else
+  printf 'node not found: skipping Model.js unit tests\n'
+fi
+
+printf 'All portable plugin checks passed.\n'
