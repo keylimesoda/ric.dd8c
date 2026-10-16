@@ -107,6 +107,12 @@ For a local checkout:
 omarchy plugin add "$(pwd)" --enable
 ```
 
+To remove:
+
+```bash
+omarchy plugin remove ric.dd8c
+```
+
 ## Tests
 
 ```
