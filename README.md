@@ -19,8 +19,8 @@ your GitHub repository's About topics.
 - **Click** — open/close the control panel
 - **Middle-click** — mute toggle
 - **Scroll** — gain ±`volStepDb` (default 1 dB)
-- Glyph shows the active input; text shows current gain; dim = offline,
-  faint = standby.
+- The Dutch & Dutch monogram (from the vendor's favicon, trademark D&D) plus
+  the current gain; dim = offline, faint = standby.
 
 ## Panel (keyboard-first)
 

@@ -8,8 +8,8 @@ import "Model.js" as Model
 
 // ric.dd8c — Dutch & Dutch 8C control in the Omarchy bar.
 //
-// Bar chip: input glyph + gain readout. Click opens the control panel;
-// middle-click toggles mute; scrolling over the chip nudges volume.
+// Bar chip: Dutch & Dutch monogram + gain readout. Click opens the control
+// panel; middle-click toggles mute; scrolling over the chip nudges volume.
 //
 // Panel: keyboard-first (hjkl + Tab sections, direct keys), built on the
 // house Panel/KeyboardPanel/PanelKeyCatcher pattern (see ric.wiim/ric.daikin).
@@ -351,14 +351,11 @@ Panel {
       anchors.centerIn: parent
       spacing: Style.space(6)
 
-      Text {
+      DdMark {
         id: mark
         anchors.verticalCenter: parent.verticalCenter
-        textFormat: Text.PlainText
-        text: root.online ? Model.inputIcon(root.snap) : Model.ICON.speaker
-        color: root.chipInk
-        font.family: root.ff
-        font.pixelSize: Style.font.body
+        size: Math.max(20, root.barH - 8)
+        ink: root.chipInk
       }
 
       Text {
@@ -442,6 +439,7 @@ Panel {
       ScrollView {
         id: scrollArea
         anchors.fill: parent
+        anchors.bottomMargin: Style.space(42) // keep content clear of the footer
         clip: true
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
         ScrollBar.vertical.policy: panelColumn.implicitHeight > height
@@ -454,7 +452,7 @@ Panel {
 
           // ---------- Hero: room · fw · input · gain ----------
           PanelHero {
-            iconComponent: InputTile
+            iconComponent: inputTile
             title: Model.heroTitle(root.snap)
             meta: Model.heroMeta(root.snap)
             detail: root.asleep ? "STANDBY" : (root.muted ? "MUTED" : "")
@@ -788,17 +786,43 @@ Panel {
     }
   }
 
-  component InputTile: Rectangle {
-    width: Style.space(44)
-    height: Style.space(44)
-    color: Qt.alpha(root.fg, 0.08)
-    Text {
-      anchors.centerIn: parent
-      textFormat: Text.PlainText
-      text: root.online ? Model.inputIcon(root.snap) : Model.ICON.speaker
-      color: root.chipInk
-      font.family: root.ff
-      font.pixelSize: Style.font.title
+  // Dutch & Dutch monogram — from the vendor's favicon.svg (trademark Dutch
+  // & Dutch; used here to label the user's own room). QtSvg's basic renderer
+  // mangles the evenodd counters, so we ship pre-rasterized 128px PNGs in
+  // light/dark variants and pick by ink luminance.
+  component DdMark: Item {
+    id: ddMark
+    property color ink: root.fg
+    property real size: Style.bar.iconCanvas
+    width: size
+    height: size
+    implicitWidth: size
+    implicitHeight: size
+    Image {
+      anchors.fill: parent
+      fillMode: Image.PreserveAspectFit
+      smooth: true
+      source: (ddMark.ink.r * 0.299 + ddMark.ink.g * 0.587
+               + ddMark.ink.b * 0.114) > 0.5
+        ? "assets/dd-mark-light.png" : "assets/dd-mark-dark.png"
+    }
+  }
+
+  // Panel hero tile: the D&D monogram (the active input is spelled out in
+  // the hero meta line, so the tile carries the brand instead of a glyph).
+  // Declared as a Component value (house pattern, cf. ric.wiim artTile):
+  // inline `component X:` types cannot be assigned to Component properties.
+  Component {
+    id: inputTile
+    Rectangle {
+      width: Style.space(44)
+      height: Style.space(44)
+      color: Qt.alpha(root.fg, 0.08)
+      DdMark {
+        anchors.centerIn: parent
+        size: Style.space(30)
+        ink: root.chipInk
+      }
     }
   }
 
