@@ -51,13 +51,13 @@
       },
       {
         "key": "barText",
-        "type": "bool",
+        "type": "boolean",
         "label": "Show gain readout in bar",
         "defaultValue": true
       },
       {
         "key": "fixture",
-        "type": "bool",
+        "type": "boolean",
         "label": "Fixture mode (demo data, no device)",
         "defaultValue": false
       }
