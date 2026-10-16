@@ -359,16 +359,36 @@ Panel {
         ink: root.chipInk
       }
 
-      Text {
-        id: gainLabel
+      Item {
+        // Constant-width slot (widest possible readout) so the chip never
+        // re-centres while the volume slider is dragged.
+        width: gainProbe.implicitWidth
+        implicitWidth: width
+        height: gainLabel.implicitHeight
         anchors.verticalCenter: parent.verticalCenter
-        visible: root.barText && !root.vertical && root.online
-        textFormat: Text.PlainText
-        text: Model.barLabel(root.snap)
-        color: root.chipInk
-        font.family: root.ff
-        font.pixelSize: Style.font.body
+
+        Text {
+          id: gainLabel
+          anchors.fill: parent
+          visible: root.barText && !root.vertical && root.online
+          textFormat: Text.PlainText
+          text: Model.barLabel(root.snap)
+          color: root.chipInk
+          font.family: root.ff
+          font.pixelSize: Style.font.body
+          horizontalAlignment: Text.AlignRight
+          verticalAlignment: Text.AlignVCenter
+        }
       }
+    }
+
+    Text {
+      id: gainProbe
+      visible: false
+      textFormat: Text.PlainText
+      text: "-88.8 dB"
+      font.family: root.ff
+      font.pixelSize: Style.font.body
     }
 
     MouseArea {
