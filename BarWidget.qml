@@ -33,6 +33,7 @@ Panel {
   }
   readonly property string bin: pluginDir + "/bin/dd8c"
   readonly property string masterIp: String(setting("masterIp", "192.168.183.48"))
+  property real dragVol: 0
   readonly property int volStepDb: Math.max(1, Math.min(10, Number(setting("volStepDb", 1)) || 1))
   readonly property bool barText: setting("barText", true) !== false
   readonly property bool fixtureMode: setting("fixture", false) === true
@@ -498,7 +499,27 @@ Panel {
                 step: root.volStepDb
                 value: root.vol
                 enabled: root.online
-                onReleased: function (v) { root.volSetTo(v) }
+                // Live while dragging: readout + chip update instantly, and a
+                // throttled write reaches the device every 120 ms; release
+                // always commits the final value immediately.
+                onMoved: function (v) {
+                  var val = Model.clampDb(v, root.snap)
+                  root.dragVol = val
+                  root.patchSnap({ gain: { global: val } })
+                  volDragTimer.restart()
+                }
+                onReleased: function (v) {
+                  volDragTimer.stop()
+                  root.volSetTo(v)
+                }
+              }
+              Timer {
+                id: volDragTimer
+                interval: 120
+                onTriggered: {
+                  root.patchSnap({ mute: false })
+                  root.sendCmd("vol", { db: root.dragVol })
+                }
               }
             }
 
