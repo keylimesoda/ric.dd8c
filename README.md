@@ -36,7 +36,7 @@ uses — plus a scriptable CLI, in the style of the Omarchy bar.
 
 - **Click** — open/close the control panel
 - **Middle-click** — mute toggle
-- **Scroll** — gain ±`volStepDb` (default 1 dB)
+- **Scroll** — gain ±`volStepTenths`/10 dB (default 0.1 dB)
 
 ## Panel keys
 
@@ -45,7 +45,8 @@ uses — plus a scriptable CLI, in the style of the Omarchy bar.
 - `m` mute · `s` standby · `f` front LED · `i` cycle input · `1`–`5` pick
   input · `+`/`-` volume · `r` refresh
 - **Hold to accelerate**: held volume keys (and fast scrolling) start at
-  `volStepDb` and escalate to 2× then 4× while the burst continues; release
+  `volStepTenths`/10 dB (default 0.1) and escalate to 2× then 5× (max 0.5 dB)
+  per step) while the burst continues; release
   and the step resets. Rapid stepping never bounces — the widget keeps
   command authority over device echoes until the burst settles.
 
@@ -82,7 +83,7 @@ bin/dd8c tone --bass 2 --treble -1
 | key | default | meaning |
 |---|---|---|
 | `masterIp` | your master's IP | master speaker; `""` = mDNS discovery |
-| `volStepDb` | `1` | scroll/arrow gain step |
+| `volStepTenths` | `1` | base scroll/arrow gain step in 0.1 dB units (1 = 0.1 dB) |
 | `barText` | `true` | show gain readout |
 | `fixture` | `false` | demo data, no device |
 

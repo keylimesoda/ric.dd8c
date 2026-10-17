@@ -48,7 +48,7 @@ CLI/daemon speaking the reverse-engineered local "Ascend" mesh API.
   push handling (debounced re-read), command execution, master election,
   mDNS discovery.
 - Durable config: widget settings in `shell.json` layout entry
-  (`masterIp`, `volStepDb`, `barText`, `fixture`).
+  (`masterIp`, `volStepTenths`, `barText`, `fixture`).
 
 ## External surface (named explicitly)
 

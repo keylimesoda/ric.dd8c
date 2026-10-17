@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "ric.dd8c",
   "name": "Dutch & Dutch 8C",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": "Ric",
   "license": "MIT",
   "description": "Dutch & Dutch 8c/6c room in the bar: gain, mute, standby, input select (AES3/analog/File Player), presets, RoomMatching profiles, tone controls, front LED, and device status. Keyboard-first panel; backed by the bundled dd8c CLI (local WebSocket mesh API, no cloud).",
@@ -27,9 +27,9 @@
     "defaultSection": "center",
     "defaults": {
       "masterIp": "",
-      "volStepDb": 1,
       "barText": true,
-      "fixture": false
+      "fixture": false,
+      "volStepTenths": 1
     },
     "schema": [
       {
@@ -40,10 +40,10 @@
         "defaultValue": ""
       },
       {
-        "key": "volStepDb",
+        "key": "volStepTenths",
         "type": "integer",
-        "label": "Volume step (dB)",
-        "description": "Scroll / arrow-key gain step.",
+        "label": "Volume step (0.1 dB units)",
+        "description": "Base gain step in tenths of a dB (1 = 0.1 dB). Held keys accelerate to 2x then 5x.",
         "min": 1,
         "max": 10,
         "step": 1,

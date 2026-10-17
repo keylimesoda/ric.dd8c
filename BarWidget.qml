@@ -43,7 +43,7 @@ Panel {
   property real cmdVol: 0
   property bool cmdActive: false
   property int cmdBurst: 0
-  readonly property int volStepDb: Math.max(1, Math.min(10, Number(setting("volStepDb", 1)) || 1))
+  readonly property real volStepDb: Math.max(0.1, Math.min(5, (Number(setting("volStepTenths", 1)) || 1) / 10))
   readonly property bool barText: setting("barText", true) !== false
   readonly property bool fixtureMode: setting("fixture", false) === true
 
@@ -192,13 +192,13 @@ Panel {
   //    cannot bounce between stale snapshots. Writes are trailing-throttled
   //    (120 ms) so a burst coalesces; the final value always lands.
   //  * Acceleration: steps within a 600 ms burst escalate the multiplier
-  //    (1x for the first 3, 2x up to 8, 4x beyond) so holding a key starts
+  //    (1x for the first 3, 2x up to 8, 5x beyond) so holding a key starts
   //    fine and speeds up, like a good audio client.
   function volStepBy(d) {
     cmdActive = true
     cmdBurst++
     volCmdIdleTimer.restart()
-    var mult = cmdBurst <= 3 ? 1 : (cmdBurst <= 8 ? 2 : 4)
+    var mult = cmdBurst <= 3 ? 1 : (cmdBurst <= 8 ? 2 : 5)
     var base = cmdActive ? cmdVol : vol
     var target = Model.clampDb(base + d * mult, snap)
     cmdVol = target
