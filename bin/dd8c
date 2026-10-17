@@ -335,9 +335,31 @@ def get_room(a):
     return room, doc.get("data", doc)
 
 
+# Commanded-gain authority: the daemon knows what it last wrote. Until the
+# device confirms it (or 2 s pass), snapshots report the commanded value, so
+# clients never see a stale echo race back and forth during scrubbing.
+PENDING_GAIN = {"val": None, "ts": 0.0}
+LAST_DEV_GAIN = {"val": None}
+LAST_ROOM_ID = {"val": None}
+LAST_GAIN_LIMITS = {"val": None}
+
+
 def snapshot(a, ip):
     room, d = get_room(a)
     gain = d.get("gain") or {}
+    LAST_DEV_GAIN["val"] = gain.get("global")
+    LAST_ROOM_ID["val"] = room
+    LAST_GAIN_LIMITS["val"] = gain.get("limits")
+    pg = PENDING_GAIN
+    if pg["val"] is not None:
+        dev = gain.get("global")
+        if isinstance(dev, (int, float)) and abs(dev - pg["val"]) < 0.06:
+            pg["val"] = None  # device confirmed
+        elif time.time() - pg["ts"] < 2.0:
+            gain = dict(gain)
+            gain["global"] = pg["val"]
+        else:
+            pg["val"] = None  # stale; device truth wins
     prof = {k: v.get("name") for k, v in (d.get("profiles") or {}).items()}
     tone = {}
     sel_prof = d.get("selectedProfile")
@@ -413,6 +435,8 @@ def do_cmd(a, room_holder, cmd, args):
         lim = (d.get("gain") or {}).get("limits") or {"min": -70, "max": 6}
         val = max(lim.get("min", -70), min(lim.get("max", 6), float(args["db"])))
         a.req("update", "gain2", "room", room(), {"gain": round(val, 2)})
+        PENDING_GAIN["val"] = val
+        PENDING_GAIN["ts"] = time.time()
         return {"gain": val}
     if cmd == "mute":
         a.req("update", "mute", "room", room(),
@@ -610,7 +634,24 @@ def run_daemon(ip, fixture_mode, port=API_PORT):
             line = line.strip()
             if line:
                 try:
-                    cmdq.put(json.loads(line))
+                    req = json.loads(line)
+                    # Claim gain authority at ENQUEUE time, before the
+                    # debounced re-read can emit a snapshot that predates
+                    # this command. Setting it only inside do_cmd leaves a
+                    # one-iteration window where a stale echo stomps the
+                    # client's optimistic patch (the "lost step" bounce).
+                    if req.get("cmd") == "vol":
+                        try:
+                            val = float((req.get("args") or {}).get("db"))
+                            lim = LAST_GAIN_LIMITS["val"] or {}
+                            if lim:
+                                val = max(lim.get("min", -70),
+                                          min(lim.get("max", 6), val))
+                            PENDING_GAIN["val"] = val
+                            PENDING_GAIN["ts"] = time.time()
+                        except (TypeError, ValueError):
+                            pass
+                    cmdq.put(req)
                 except json.JSONDecodeError:
                     cmdq.put({"id": None, "cmd": "_bad", "args": {}})
         cmdq.put(False)  # stdin closed -> exit
@@ -627,6 +668,35 @@ def run_daemon(ip, fixture_mode, port=API_PORT):
             emit({"event": "state", "snapshot": snapshot(a, host)})
             last_state = time.time()
             dirty = False
+            gain_send = {"ts": 0.0}
+
+            def self_process(req):
+                nonlocal dirty
+                if req.get("cmd") == "_bad":
+                    emit({"id": req.get("id"), "ok": False, "error": "bad json"})
+                    return
+                if req.get("cmd") == "vol":
+                    # PENDING_GAIN was claimed at enqueue time (latest wins);
+                    # the serialized writer performs the actual update.
+                    try:
+                        val = float((req.get("args") or {}).get("db"))
+                        lim = LAST_GAIN_LIMITS["val"]
+                        if lim:
+                            val = max(lim.get("min", -70),
+                                      min(lim.get("max", 6), val))
+                        emit({"id": req.get("id"), "ok": True,
+                              "result": {"gain": val}})
+                        dirty = True
+                    except (TypeError, ValueError) as e:
+                        emit({"id": req.get("id"), "ok": False,
+                              "error": str(e)})
+                    return
+                try:
+                    res = do_cmd(a, holder, req.get("cmd", ""), req.get("args") or {})
+                    emit({"id": req.get("id"), "ok": True, "result": res})
+                    dirty = True  # commands change state; refresh promptly
+                except Exception as e:
+                    emit({"id": req.get("id"), "ok": False, "error": str(e)})
             while True:
                 # poll the socket for push notifications (2 Hz)
                 try:
@@ -637,31 +707,48 @@ def run_daemon(ip, fixture_mode, port=API_PORT):
                             dirty = True
                 except socket.timeout:
                     pass
-                # debounced re-read after any room change
+                # Serialized gain writer: the mesh applies rapid gain2
+                # writes out of order (observed: 30 ms apart arrive
+                # shuffled), so we keep exactly one value in flight — the
+                # latest target — and only resend until the room doc
+                # confirms it. Intermediate targets are coalesced away.
                 now = time.time()
+                tgt = PENDING_GAIN["val"]
+                if (tgt is not None and now - PENDING_GAIN["ts"] < 5.0
+                        and now - gain_send["ts"] > 0.1):
+                    dev = LAST_DEV_GAIN["val"]
+                    if not (isinstance(dev, (int, float))
+                            and abs(dev - tgt) < 0.06):
+                        lim = LAST_GAIN_LIMITS["val"] or {"min": -70, "max": 6}
+                        tgt = max(lim.get("min", -70),
+                                  min(lim.get("max", 6), tgt))
+                        try:
+                            a.req("update", "gain2", "room",
+                                  LAST_ROOM_ID["val"] or holder["id"],
+                                  {"gain": round(tgt, 2)})
+                            gain_send["ts"] = now
+                        except Exception:
+                            pass  # reconnection path will retry
+                # debounced re-read after any room change
                 if dirty and now - last_state > 0.15:
                     dirty = False
                     last_state = now
                     emit({"event": "state", "snapshot": snapshot(a, host)})
-                # commands
-                req = None
-                try:
-                    req = cmdq.get_nowait()
-                except queue.Empty:
-                    pass
-                if req is None:
+                # commands: drain the queue (up to 30 per iteration) so a
+                # burst of steps is processed in one pass, not one per loop.
+                drained = False
+                for _ in range(30):
+                    try:
+                        req = cmdq.get_nowait()
+                    except queue.Empty:
+                        break
+                    drained = True
+                    if req is False:
+                        return  # stdin closed
+                    self_process(req)
+                if not drained:
                     continue
-                if req is False:
-                    return  # stdin closed
-                if req.get("cmd") == "_bad":
-                    emit({"id": req.get("id"), "ok": False, "error": "bad json"})
-                    continue
-                try:
-                    res = do_cmd(a, holder, req.get("cmd", ""), req.get("args") or {})
-                    emit({"id": req.get("id"), "ok": True, "result": res})
-                    dirty = True  # commands change state; refresh promptly
-                except Exception as e:
-                    emit({"id": req.get("id"), "ok": False, "error": str(e)})
+                self_process(req)
         except Exception as e:
             emit({"event": "offline", "error": str(e)})
             try:

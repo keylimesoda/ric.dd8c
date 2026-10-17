@@ -37,11 +37,9 @@ Panel {
   // Local input authority: while the user drags the volume slider, device
   // state echoes must not overwrite the knob/readout (standard media-slider
   // pattern: local control wins until release, then remote state reconciles).
-  property bool dragActive: false
-  // Command authority for stepped volume (keys/wheel/IPC): the last value we
-  // commanded wins over device echoes until the burst window closes.
+  // Last value sent to the daemon by a step gesture; the throttle flushes
+  // to it. Display truth comes from the snapshot (daemon reconciles).
   property real cmdVol: 0
-  property bool cmdActive: false
   property int cmdBurst: 0
   readonly property real volStepDb: Math.max(0.1, Math.min(5, (Number(setting("volStepTenths", 1)) || 1) / 10))
   readonly property bool barText: setting("barText", true) !== false
@@ -91,6 +89,14 @@ Panel {
     if (next === focusSection) return
     focusSection = next
     if (idx(next) >= groupCount(next)) setIdx(next, 0)
+  }
+
+  // Hovering a list item parks the keyboard cursor on it (used by the
+  // source/presets/profiles lists and the volume/toggle rows).
+  function setCursor(sec, i) {
+    cursorActive = true
+    focusSection = sec
+    setIdx(sec, i)
   }
 
   function moveCursor(dx, dy) {
@@ -186,14 +192,9 @@ Panel {
     patchSnap({ gain: { global: v }, mute: false })
     sendCmd("vol", { db: v })
   }
-  // Stepped volume (keys, wheel, IPC). Three protections:
-  //  * Command authority: consecutive steps chain from the last commanded
-  //    value (cmdVol) — but only while a gesture is genuinely in flight.
-  //    A fresh gesture starts from the device's current value (vol), never
-  //    from a stale cmdVol. Authority is released when a device echo
-  //    confirms the commanded value (within 0.15 dB) or after a 2 s safety
-  //    timeout — not on a fixed short window, which could close before the
-  //    echo lands and let a stale snapshot stomp the readout.
+  // Stepped volume (keys, wheel, IPC). Optimistic patch (ric.wiim pattern)
+  // keeps the readout instant; the daemon's PENDING_GAIN keeps snapshots
+  // consistent, so no client-side suppression is needed.
   //  * Acceleration: steps within a 400 ms burst escalate the multiplier
   //    (1x first 3, 2x to 7, a brief 5x sprint to 11, then back to a 2x
   //    cruise) so a long hold never runs away at top speed.
@@ -203,9 +204,7 @@ Panel {
   // change the audible volume on release.
   property bool cmdWritePending: false
   function volStepBy(d) {
-    var base = cmdActive ? cmdVol : vol
-    cmdActive = true
-    volCmdAuthorityTimer.restart()
+    var base = vol   // snapshot is truth; daemon reconciles echoes
     cmdBurst++
     volCmdIdleTimer.restart()
     var mult = cmdBurst <= 3 ? 1 : (cmdBurst <= 7 ? 2 : (cmdBurst <= 11 ? 5 : 2))
@@ -232,16 +231,10 @@ Panel {
     }
   }
   Timer {
-    // Acceleration burst reset only; command authority is held by
-    // volCmdAuthorityTimer until the device confirms.
+    // Acceleration burst reset.
     id: volCmdIdleTimer
     interval: 400
     onTriggered: { root.cmdBurst = 0 }
-  }
-  Timer {
-    id: volCmdAuthorityTimer
-    interval: 2000
-    onTriggered: { root.cmdActive = false }
   }
   function muteToggle() {
     var on = !muted
@@ -295,22 +288,14 @@ Panel {
       lastError = ""
     } else if (obj.event === "state") {
       if (obj.snapshot) {
-        // Gain echoes: local commands own the value while a gesture is in
-        // flight; a confirming echo (within 0.15 dB of the commanded value)
-        // releases command authority and the device's truth takes over.
-        if (obj.snapshot.gain) {
-          if (root.dragActive) obj.snapshot.gain.global = root.dragVol
-          else if (root.cmdActive) {
-            var dev = Number(obj.snapshot.gain.global)
-            if (Math.abs(dev - root.cmdVol) < 0.15) root.cmdActive = false
-            else obj.snapshot.gain.global = root.cmdVol
-          }
-        }
+        // Dumb by design (ric.wiim pattern): the snapshot is the single
+        // source of truth. Stale-echo races are reconciled in the daemon
+        // (PENDING_GAIN), not here, so there is no client-side authority
+        // machinery left to get wrong.
         snap = obj.snapshot; lastError = ""
       }
     } else if (obj.event === "offline") {
       lastError = obj.error || "offline"
-      root.dragActive = false
     } else if (obj.ok === false && obj.error) {
       lastError = String(obj.error)
       refresh() // optimistic patch was wrong; resync
@@ -602,16 +587,15 @@ Panel {
                 step: root.volStepDb
                 value: root.vol
                 enabled: root.online
-                // Live while dragging: the UI is driven purely by the drag
-                // (device echoes suppressed until release). Writes use a
-                // leading+trailing throttle: the first lands immediately,
-                // then at most one per 120 ms even during a continuous
-                // sweep; release commits the final value and the device
-                // echo reconciles.
+                // Live while dragging: optimistic patch keeps the knob and
+                // readout glued to the pointer; the daemon's PENDING_GAIN
+                // keeps snapshots consistent so echoes cannot bounce the
+                // knob mid-drag. Writes use a leading+trailing throttle:
+                // first lands immediately, then at most one per 120 ms;
+                // release commits the final value.
                 property bool pendingWrite: false
                 onMoved: function (v) {
                   var val = Model.clampDb(v, root.snap)
-                  root.dragActive = true
                   root.dragVol = val
                   root.patchSnap({ gain: { global: val } })
                   if (volDragTimer.running) {
@@ -623,7 +607,6 @@ Panel {
                   }
                 }
                 onReleased: function (v) {
-                  root.dragActive = false
                   volSlider.pendingWrite = false
                   volDragTimer.stop()
                   root.volSetTo(v)

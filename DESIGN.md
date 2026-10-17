@@ -47,6 +47,13 @@ CLI/daemon speaking the reverse-engineered local "Ascend" mesh API.
 - `bin/dd8c daemon` owns: WS connection to the master, `subscribe network`
   push handling (debounced re-read), command execution, master election,
   mDNS discovery.
+- Gain writes are serialized in the daemon (DAW-style parameter queue):
+  the mesh applies rapid `gain2` writes out of order (observed at 30 ms
+  spacing — the room landed on an intermediate value, not the last one),
+  so the daemon keeps exactly one in-flight target — the latest — resends
+  until the room doc confirms it, and reports that target in snapshots
+  until confirmed. The QML stays dumb: optimistic patch, no client-side
+  echo suppression.
 - Durable config: widget settings in `shell.json` layout entry
   (`masterIp`, `volStepTenths`, `barText`, `fixture`).
 
