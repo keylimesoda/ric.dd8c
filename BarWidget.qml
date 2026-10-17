@@ -34,6 +34,10 @@ Panel {
   readonly property string bin: pluginDir + "/bin/dd8c"
   readonly property string masterIp: String(setting("masterIp", "192.168.183.48"))
   property real dragVol: 0
+  // Local input authority: while the user drags the volume slider, device
+  // state echoes must not overwrite the knob/readout (standard media-slider
+  // pattern: local control wins until release, then remote state reconciles).
+  property bool dragActive: false
   readonly property int volStepDb: Math.max(1, Math.min(10, Number(setting("volStepDb", 1)) || 1))
   readonly property bool barText: setting("barText", true) !== false
   readonly property bool fixtureMode: setting("fixture", false) === true
@@ -228,9 +232,15 @@ Panel {
       backoffMs = 1000
       lastError = ""
     } else if (obj.event === "state") {
-      if (obj.snapshot) { snap = obj.snapshot; lastError = "" }
+      if (obj.snapshot) {
+        // Suppress the gain echo while dragging; everything else may update.
+        if (root.dragActive && obj.snapshot.gain)
+          obj.snapshot.gain.global = root.dragVol
+        snap = obj.snapshot; lastError = ""
+      }
     } else if (obj.event === "offline") {
       lastError = obj.error || "offline"
+      root.dragActive = false
     } else if (obj.ok === false && obj.error) {
       lastError = String(obj.error)
       refresh() // optimistic patch was wrong; resync
@@ -502,7 +512,9 @@ Panel {
 
             Rectangle {
               id: volFrame
-              width: Math.max(40, parent.width - muteBtn.width - volReadout.implicitWidth
+              // volSlot has a constant width (widest readout), so the track
+              // never resizes while the number changes length mid-drag.
+              width: Math.max(40, parent.width - muteBtn.width - volSlot.width
                               - parent.spacing * 2)
               height: root.controlH
               color: "transparent"
@@ -519,16 +531,19 @@ Panel {
                 step: root.volStepDb
                 value: root.vol
                 enabled: root.online
-                // Live while dragging: readout + chip update instantly, and a
-                // throttled write reaches the device every 120 ms; release
-                // always commits the final value immediately.
+                // Live while dragging: the UI is driven purely by the drag
+                // (device echoes suppressed until release), and a throttled
+                // write reaches the device every 120 ms; release commits
+                // immediately and the device echo then reconciles.
                 onMoved: function (v) {
                   var val = Model.clampDb(v, root.snap)
+                  root.dragActive = true
                   root.dragVol = val
                   root.patchSnap({ gain: { global: val } })
                   volDragTimer.restart()
                 }
                 onReleased: function (v) {
+                  root.dragActive = false
                   volDragTimer.stop()
                   root.volSetTo(v)
                 }
@@ -543,13 +558,32 @@ Panel {
               }
             }
 
-            Text {
-              id: volReadout
+            Item {
+              id: volSlot
+              width: volProbe.implicitWidth
+              height: volReadout.implicitHeight
               anchors.verticalCenter: parent.verticalCenter
+
+              Text {
+                id: volReadout
+                anchors.fill: parent
+                textFormat: Text.PlainText
+                text: root.online ? Model.fmtDb(root.vol) : "—"
+                color: root.fg
+                opacity: root.muted ? 0.45 : 1.0
+                font.family: root.ff
+                font.pixelSize: Style.font.bodySmall
+                font.bold: true
+                horizontalAlignment: Text.AlignRight
+                verticalAlignment: Text.AlignVCenter
+              }
+            }
+
+            Text {
+              id: volProbe
+              visible: false
               textFormat: Text.PlainText
-              text: root.online ? Model.fmtDb(root.vol) : "—"
-              color: root.fg
-              opacity: root.muted ? 0.45 : 1.0
+              text: "-88.8 dB"
               font.family: root.ff
               font.pixelSize: Style.font.bodySmall
               font.bold: true
