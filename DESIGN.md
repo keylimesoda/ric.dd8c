@@ -6,7 +6,7 @@ CLI/daemon speaking the reverse-engineered local "Ascend" mesh API.
 
 ## Decisions (settled with the user, 2026-10-16)
 
-- Target: user's 8c pair "Play Room" (master 192.168.183.48 pinned as
+- Target: user's 8c pair "Play Room" (master IP pinned in the user's shell.json; shipped default is "" = mDNS discovery, placeholder 192.168.1.50 in fixtures)
   default; `masterIp: ""` enables mDNS discovery of `_x-clerk._tcp`).
 - House pattern: follows `ric.wiim` / `ric.daikin` exactly — `bar-widget`
   kind, `Panel`-derived `BarWidget.qml`, bundled `bin/` CLI, `Model.js`

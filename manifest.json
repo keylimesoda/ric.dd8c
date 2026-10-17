@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "ric.dd8c",
   "name": "Dutch & Dutch 8C",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "Ric",
   "license": "MIT",
   "description": "Dutch & Dutch 8c/6c room in the bar: gain, mute, standby, input select (AES3/analog/File Player), presets, RoomMatching profiles, tone controls, front LED, and device status. Keyboard-first panel; backed by the bundled dd8c CLI (local WebSocket mesh API, no cloud).",
@@ -26,7 +26,7 @@
     "allowMultiple": false,
     "defaultSection": "center",
     "defaults": {
-      "masterIp": "192.168.183.48",
+      "masterIp": "",
       "volStepDb": 1,
       "barText": true,
       "fixture": false
@@ -37,7 +37,7 @@
         "type": "string",
         "label": "Master speaker IP",
         "description": "Master 8c address (find it with: bin/dd8c discover). Empty = mDNS discovery at startup.",
-        "defaultValue": "192.168.183.48"
+        "defaultValue": ""
       },
       {
         "key": "volStepDb",

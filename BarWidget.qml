@@ -32,7 +32,7 @@ Panel {
     return url.replace(/\/+$/, "")
   }
   readonly property string bin: pluginDir + "/bin/dd8c"
-  readonly property string masterIp: String(setting("masterIp", "192.168.183.48"))
+  readonly property string masterIp: String(setting("masterIp", ""))
   property real dragVol: 0
   // Local input authority: while the user drags the volume slider, device
   // state echoes must not overwrite the knob/readout (standard media-slider

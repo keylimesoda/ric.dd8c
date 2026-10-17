@@ -181,9 +181,9 @@ function fixtureSnapshot() {
   return {
     online: true,
     ts: new Date().toISOString(),
-    masterIp: "192.168.183.48",
-    room: "Play Room (fixture)",
-    roomId: "5bd57f06-b6a7-46c9-969a-72d960a7791e",
+    masterIp: "192.168.1.50",
+    room: "Living Room Zone (fixture)",
+    roomId: "fixture-room",
     version: "2.6.43",
     selectedInput: "XLR",
     selectedXLR: "aes",

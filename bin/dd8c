@@ -253,7 +253,7 @@ def discover(timeout=3.0):
                 out.append((inst, target, ip, port))
     sock.close()
     if not out:  # fallback: avahi-resolvable .local names
-        for n in ("8c-3850.local", "8c-3851.local", "8c.local"):
+        for n in ("8c.local",):
             try:
                 ip = socket.gethostbyname(n)
             except OSError:
@@ -479,7 +479,7 @@ def do_cmd(a, room_holder, cmd, args):
 # ---------------------------------------------------------------------------
 
 FIXTURE_DOC = {
-    "name": "Play Room (fixture)", "version": "2.6.43",
+    "name": "Living Room Zone (fixture)", "version": "2.6.43",
     "selectedInput": "XLR", "selectedXLR": "aes",
     "inputModes": list(SOURCE_MODES), "inputLevel": -42.5,
     "gain": {"global": -30.0, "activeCorrection": -10,
