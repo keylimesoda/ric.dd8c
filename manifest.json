@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "ric.dd8c",
   "name": "Dutch & Dutch 8C",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "Ric",
   "license": "MIT",
   "description": "Dutch & Dutch 8c/6c room in the bar: gain, mute, standby, input select (AES3/analog/File Player), presets, RoomMatching profiles, tone controls, front LED, and device status. Keyboard-first panel; backed by the bundled dd8c CLI (local WebSocket mesh API, no cloud).",

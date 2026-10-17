@@ -44,6 +44,10 @@ uses — plus a scriptable CLI, in the style of the Omarchy bar.
 - `Enter` — activate focused control · `Space` — mute
 - `m` mute · `s` standby · `f` front LED · `i` cycle input · `1`–`5` pick
   input · `+`/`-` volume · `r` refresh
+- **Hold to accelerate**: held volume keys (and fast scrolling) start at
+  `volStepDb` and escalate to 2× then 4× while the burst continues; release
+  and the step resets. Rapid stepping never bounces — the widget keeps
+  command authority over device echoes until the burst settles.
 
 ## Summon without the bar
 

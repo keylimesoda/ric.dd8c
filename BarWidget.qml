@@ -38,6 +38,11 @@ Panel {
   // state echoes must not overwrite the knob/readout (standard media-slider
   // pattern: local control wins until release, then remote state reconciles).
   property bool dragActive: false
+  // Command authority for stepped volume (keys/wheel/IPC): the last value we
+  // commanded wins over device echoes until the burst window closes.
+  property real cmdVol: 0
+  property bool cmdActive: false
+  property int cmdBurst: 0
   readonly property int volStepDb: Math.max(1, Math.min(10, Number(setting("volStepDb", 1)) || 1))
   readonly property bool barText: setting("barText", true) !== false
   readonly property bool fixtureMode: setting("fixture", false) === true
@@ -177,10 +182,45 @@ Panel {
 
   function volSetTo(v) {
     v = Model.clampDb(v, snap)
+    cmdVol = v
     patchSnap({ gain: { global: v }, mute: false })
     sendCmd("vol", { db: v })
   }
-  function volStepBy(d) { volSetTo(vol + d) }
+  // Stepped volume (keys, wheel, IPC). Two protections:
+  //  * Command authority: consecutive steps chain from the last commanded
+  //    value (cmdVol), not from lagging device echoes, so rapid stepping
+  //    cannot bounce between stale snapshots. Writes are trailing-throttled
+  //    (120 ms) so a burst coalesces; the final value always lands.
+  //  * Acceleration: steps within a 600 ms burst escalate the multiplier
+  //    (1x for the first 3, 2x up to 8, 4x beyond) so holding a key starts
+  //    fine and speeds up, like a good audio client.
+  function volStepBy(d) {
+    cmdActive = true
+    cmdBurst++
+    volCmdIdleTimer.restart()
+    var mult = cmdBurst <= 3 ? 1 : (cmdBurst <= 8 ? 2 : 4)
+    var base = cmdActive ? cmdVol : vol
+    var target = Model.clampDb(base + d * mult, snap)
+    cmdVol = target
+    patchSnap({ gain: { global: target }, mute: false })
+    volCmdWriteTimer.restart()
+  }
+  Timer {
+    id: volCmdWriteTimer
+    interval: 120
+    onTriggered: {
+      root.patchSnap({ mute: false })
+      root.sendCmd("vol", { db: root.cmdVol })
+    }
+  }
+  Timer {
+    id: volCmdIdleTimer
+    interval: 600
+    onTriggered: {
+      root.cmdActive = false
+      root.cmdBurst = 0
+    }
+  }
   function muteToggle() {
     var on = !muted
     patchSnap({ mute: on })
@@ -233,9 +273,12 @@ Panel {
       lastError = ""
     } else if (obj.event === "state") {
       if (obj.snapshot) {
-        // Suppress the gain echo while dragging; everything else may update.
-        if (root.dragActive && obj.snapshot.gain)
-          obj.snapshot.gain.global = root.dragVol
+        // Suppress gain echoes while dragging or mid step-burst; local
+        // commands own the value until the interaction settles.
+        if (obj.snapshot.gain) {
+          if (root.dragActive) obj.snapshot.gain.global = root.dragVol
+          else if (root.cmdActive) obj.snapshot.gain.global = root.cmdVol
+        }
         snap = obj.snapshot; lastError = ""
       }
     } else if (obj.event === "offline") {
