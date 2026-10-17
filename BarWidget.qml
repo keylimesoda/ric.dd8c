@@ -191,14 +191,14 @@ Panel {
   //    value (cmdVol), not from lagging device echoes, so rapid stepping
   //    cannot bounce between stale snapshots. Writes are trailing-throttled
   //    (120 ms) so a burst coalesces; the final value always lands.
-  //  * Acceleration: steps within a 600 ms burst escalate the multiplier
+  //  * Acceleration: steps within a 400 ms burst escalate the multiplier
   //    (1x for the first 3, 2x up to 8, 5x beyond) so holding a key starts
   //    fine and speeds up, like a good audio client.
   function volStepBy(d) {
     cmdActive = true
     cmdBurst++
     volCmdIdleTimer.restart()
-    var mult = cmdBurst <= 3 ? 1 : (cmdBurst <= 8 ? 2 : 5)
+    var mult = cmdBurst <= 3 ? 1 : (cmdBurst <= 7 ? 2 : (cmdBurst <= 11 ? 5 : 2))
     var base = cmdActive ? cmdVol : vol
     var target = Model.clampDb(base + d * mult, snap)
     cmdVol = target
@@ -215,7 +215,7 @@ Panel {
   }
   Timer {
     id: volCmdIdleTimer
-    interval: 600
+    interval: 400
     onTriggered: {
       root.cmdActive = false
       root.cmdBurst = 0
