@@ -189,11 +189,15 @@ Panel {
   // Stepped volume (keys, wheel, IPC). Two protections:
   //  * Command authority: consecutive steps chain from the last commanded
   //    value (cmdVol), not from lagging device echoes, so rapid stepping
-  //    cannot bounce between stale snapshots. Writes are trailing-throttled
-  //    (120 ms) so a burst coalesces; the final value always lands.
+  //    cannot bounce between stale snapshots.
   //  * Acceleration: steps within a 400 ms burst escalate the multiplier
-  //    (1x for the first 3, 2x up to 8, 5x beyond) so holding a key starts
-  //    fine and speeds up, like a good audio client.
+  //    (1x first 3, 2x to 7, a brief 5x sprint to 11, then back to a 2x
+  //    cruise) so a long hold never runs away at top speed.
+  // Writes use a leading+trailing throttle: the first step lands instantly,
+  // then at most one per 120 ms, and the final value always flushes. A pure
+  // trailing throttle would starve under continuous key repeat and only
+  // change the audible volume on release.
+  property bool cmdWritePending: false
   function volStepBy(d) {
     cmdActive = true
     cmdBurst++
@@ -203,14 +207,23 @@ Panel {
     var target = Model.clampDb(base + d * mult, snap)
     cmdVol = target
     patchSnap({ gain: { global: target }, mute: false })
-    volCmdWriteTimer.restart()
+    if (volCmdWriteTimer.running) {
+      cmdWritePending = true
+    } else {
+      patchSnap({ mute: false })
+      sendCmd("vol", { db: target })
+      volCmdWriteTimer.restart()
+    }
   }
   Timer {
     id: volCmdWriteTimer
     interval: 120
     onTriggered: {
-      root.patchSnap({ mute: false })
-      root.sendCmd("vol", { db: root.cmdVol })
+      if (root.cmdWritePending) {
+        root.cmdWritePending = false
+        root.sendCmd("vol", { db: root.cmdVol })
+        root.volCmdWriteTimer.restart()
+      }
     }
   }
   Timer {
@@ -575,18 +588,28 @@ Panel {
                 value: root.vol
                 enabled: root.online
                 // Live while dragging: the UI is driven purely by the drag
-                // (device echoes suppressed until release), and a throttled
-                // write reaches the device every 120 ms; release commits
-                // immediately and the device echo then reconciles.
+                // (device echoes suppressed until release). Writes use a
+                // leading+trailing throttle: the first lands immediately,
+                // then at most one per 120 ms even during a continuous
+                // sweep; release commits the final value and the device
+                // echo reconciles.
+                property bool pendingWrite: false
                 onMoved: function (v) {
                   var val = Model.clampDb(v, root.snap)
                   root.dragActive = true
                   root.dragVol = val
                   root.patchSnap({ gain: { global: val } })
-                  volDragTimer.restart()
+                  if (volDragTimer.running) {
+                    volSlider.pendingWrite = true
+                  } else {
+                    root.patchSnap({ mute: false })
+                    root.sendCmd("vol", { db: val })
+                    volDragTimer.restart()
+                  }
                 }
                 onReleased: function (v) {
                   root.dragActive = false
+                  volSlider.pendingWrite = false
                   volDragTimer.stop()
                   root.volSetTo(v)
                 }
@@ -595,8 +618,11 @@ Panel {
                 id: volDragTimer
                 interval: 120
                 onTriggered: {
-                  root.patchSnap({ mute: false })
-                  root.sendCmd("vol", { db: root.dragVol })
+                  if (volSlider.pendingWrite) {
+                    volSlider.pendingWrite = false
+                    root.sendCmd("vol", { db: root.dragVol })
+                    volDragTimer.restart()
+                  }
                 }
               }
             }
