@@ -186,10 +186,14 @@ Panel {
     patchSnap({ gain: { global: v }, mute: false })
     sendCmd("vol", { db: v })
   }
-  // Stepped volume (keys, wheel, IPC). Two protections:
+  // Stepped volume (keys, wheel, IPC). Three protections:
   //  * Command authority: consecutive steps chain from the last commanded
-  //    value (cmdVol), not from lagging device echoes, so rapid stepping
-  //    cannot bounce between stale snapshots.
+  //    value (cmdVol) — but only while a gesture is genuinely in flight.
+  //    A fresh gesture starts from the device's current value (vol), never
+  //    from a stale cmdVol. Authority is released when a device echo
+  //    confirms the commanded value (within 0.15 dB) or after a 2 s safety
+  //    timeout — not on a fixed short window, which could close before the
+  //    echo lands and let a stale snapshot stomp the readout.
   //  * Acceleration: steps within a 400 ms burst escalate the multiplier
   //    (1x first 3, 2x to 7, a brief 5x sprint to 11, then back to a 2x
   //    cruise) so a long hold never runs away at top speed.
@@ -199,11 +203,12 @@ Panel {
   // change the audible volume on release.
   property bool cmdWritePending: false
   function volStepBy(d) {
+    var base = cmdActive ? cmdVol : vol
     cmdActive = true
+    volCmdAuthorityTimer.restart()
     cmdBurst++
     volCmdIdleTimer.restart()
     var mult = cmdBurst <= 3 ? 1 : (cmdBurst <= 7 ? 2 : (cmdBurst <= 11 ? 5 : 2))
-    var base = cmdActive ? cmdVol : vol
     var target = Model.clampDb(base + d * mult, snap)
     cmdVol = target
     patchSnap({ gain: { global: target }, mute: false })
@@ -227,12 +232,16 @@ Panel {
     }
   }
   Timer {
+    // Acceleration burst reset only; command authority is held by
+    // volCmdAuthorityTimer until the device confirms.
     id: volCmdIdleTimer
     interval: 400
-    onTriggered: {
-      root.cmdActive = false
-      root.cmdBurst = 0
-    }
+    onTriggered: { root.cmdBurst = 0 }
+  }
+  Timer {
+    id: volCmdAuthorityTimer
+    interval: 2000
+    onTriggered: { root.cmdActive = false }
   }
   function muteToggle() {
     var on = !muted
@@ -286,11 +295,16 @@ Panel {
       lastError = ""
     } else if (obj.event === "state") {
       if (obj.snapshot) {
-        // Suppress gain echoes while dragging or mid step-burst; local
-        // commands own the value until the interaction settles.
+        // Gain echoes: local commands own the value while a gesture is in
+        // flight; a confirming echo (within 0.15 dB of the commanded value)
+        // releases command authority and the device's truth takes over.
         if (obj.snapshot.gain) {
           if (root.dragActive) obj.snapshot.gain.global = root.dragVol
-          else if (root.cmdActive) obj.snapshot.gain.global = root.cmdVol
+          else if (root.cmdActive) {
+            var dev = Number(obj.snapshot.gain.global)
+            if (Math.abs(dev - root.cmdVol) < 0.15) root.cmdActive = false
+            else obj.snapshot.gain.global = root.cmdVol
+          }
         }
         snap = obj.snapshot; lastError = ""
       }
@@ -399,6 +413,7 @@ Panel {
         online: root.online, chipState: root.chipState,
         daemonRunning: daemonProc.running, daemonReady: root.daemonReady,
         lastError: root.lastError, fixtureMode: root.fixtureMode,
+        gain: root.snap ? Number(root.snap.gain.global) : null,
         settings: root.settings, focusSection: root.focusSection
       })
     }
